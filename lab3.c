@@ -7,9 +7,11 @@
 #include <stdlib.h>
 #include <wait.h>
 #include <errno.h>
-#define MAXN 4096
+#define MAXN 1024
+#define LINE 1024
 int s1,s2;//信号灯
-int *buf,*ptr;
+char (*buf)[LINE];
+int *ptr;
 union semun
 {
   int val;
@@ -41,24 +43,26 @@ void sem_init(int semid,int val){
 	return;
 }
 void writebuf(char* fname,int s1,int s2){
-    freopen(fname,"r",stdin);
-    int c;
+    FILE* pf=fopen(fname,"r");
     while(1){
         P(s1);
-        c=getchar();
-        buf[ptr[0]]=c;
+        ptr[2]=fread(buf[ptr[0]],sizeof(char),LINE,pf);
+        if(ptr[2]!=LINE) { V(s2);break;}
         if(++ptr[0]==MAXN) ptr[0]=0;
         V(s2);
-        if(c==EOF) break;
     }
     return ;
 }
 void readbuf(char* fname,int s1,int s2){
-    freopen(fname,"w",stdout);
+    FILE *pf=fopen(fname,"w");
     while(1){
         P(s2);
-        if(buf[ptr[1]]==EOF) break;
-        printf("%c",buf[ptr[1]]);
+        if(ptr[1]==ptr[0]){
+            fwrite(buf[ptr[1]],sizeof(char),ptr[2],pf);
+            V(s1);
+            break;
+        }
+        fwrite(buf[ptr[1]],sizeof(char),LINE,pf);
         if(++ptr[1]==MAXN) ptr[1]=0;
         V(s1);
     }
@@ -66,10 +70,10 @@ void readbuf(char* fname,int s1,int s2){
 }
 int main(int argc,char*argv[])
 {
-    int shmid1=shmget((key_t)3,sizeof(int)*MAXN,0666|IPC_CREAT);
-    int shmid2=shmget((key_t)4,sizeof(int)*2,0666|IPC_CREAT);
-    buf=(int*)shmat(shmid1,0,0);//share buf
-    ptr=(int*)shmat(shmid2,0,0);//ptr[0]->rptr,ptr[1]->wptr
+    int shmid1=shmget((key_t)3,sizeof(char[LINE])*MAXN,0666|IPC_CREAT);
+    int shmid2=shmget((key_t)4,sizeof(int)*3,0666|IPC_CREAT);
+    buf=shmat(shmid1,0,0);//share buf
+    ptr=(int*)shmat(shmid2,0,0);//ptr[0]->rptr,ptr[1]->wptr,ptr[2]->block count
     ptr[0]=0;//initialize
     ptr[1]=0;
     ptr[2]=0;
