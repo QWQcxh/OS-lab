@@ -90,6 +90,6 @@ int main(int argc,char* argv[])
         printf("one parameter of path needed!!!\n");
         return 0;
     }
-    printdir(".",0);
+    printdir(argv[1],0);
     return 0;
 }
